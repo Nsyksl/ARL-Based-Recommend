@@ -1,0 +1,76 @@
+**İş Problemi : **
+#Türkiye'nin en büyük online hizmet platformu olan Armut. hizmet verenler İle hizmet olmak İsteyenleri buluşturmaktadır.
+Bilgisayarın veya akıllı telefonunun üzerinden birkaç dokunuşla temizlik. tadilat, nakliyat gibi hizmetlere kolayca ulaşılmasını sağlamaktadır.
+Hizmet Olan kullanıcıları ve bu kullanıcıların almış oldukları servis ve kategorileri içeren veri setini kullanarak:
+Assocİatİon Rule Learning ile ürün tavsiye sistemi oluşturulmak istenmektedir.
+
+
+
+
+
+
+
+
+import pandas as pd 
+pd.set_option("display.max_columns", None)
+from mlxtend.frequent_patterns import apriori, association_rules
+df_ = pd.read_csv("armut_data.csv")
+df = df_.copy()
+
+
+df.head()
+df.info()
+#Görev 1: Veriyi Hazırlama
+#a- : ServisID her bir CategoryID özelinde farklı bir hizmeti temsil etmektedir. ServiceID ve CategoryID’yi "_" ile birleştirerek bu hizmetleri
+temsil edecek yeni bir değişken oluşturunuz.
+
+df["Hizmet"] = [str(row[1])+ "_" + str(row[2]) for row in df.values]
+
+
+
+
+df["CreateDate"] = pd.to_datetime(df["CreateDate"])      # CreateDate kategorisi object dolayısıyla date türüne çeviriyoruz.
+df["New_Date"] = df["CreateDate"].dt.strftime("%Y-%m")   # New_Date adında, CreateDate kategorisinin Yılı ve Ayı alacak biçimde yeni bir kategori oluşturuyoruz.
+
+
+df["Sepet_Id"] = [str(row[0]) + "_" + row[5] for row in df.values ]  # Sepet_Id adında User_Id ile New_Date kategorilerini birleştiriyoruz ve her bir sepeti ayrı değerlendirebilmek üzere hazırlayabiliyoruz.
+
+
+#Görev 2: Birliktelik Kuralları Üretiniz ve Öneride bulununuz.
+
+
+new_df = df.groupby(["Sepet_Id","Hizmet"])["Hizmet"].count().unstack().fillna(0).applymap(lambda x: 1 if x > 0 else 0) 
+new_df.head()
+
+#Görev 3 : Birliktelik kurallarını oluşturunuz.
+
+freq_items = apriori(new_df, min_support=0.01, use_colnames=True)
+
+rules = association_rules(freq_items, metric="support", min_threshold=0.01 )
+
+#Görev 4 : ARL Recommender Fonksiyonu oluşturunuz.
+
+def arl_recommend(dataframe, product_id, rec_count=1, sort_values="confidence"):
+  """ 
+  dataframe : dataframe
+
+  product_id : Sepet Kodu 
+
+  rec_count : Ürün Öneri Sayısı 
+
+  sort_values : Önemli gördüğünüz bir parametre ( confidence , lift, leverage )
+  """
+  recommend = []
+  sorted_rules = dataframe.sort_values(sort_values, ascending=False)
+  for i, product in sorted_rules["antecedents"].items():
+    for j in list(product):
+      if j == product_id:
+        recommend.append(list(sorted_rules.iloc[i]["consequents"]))
+  recommend = list({item for item_list in recommend for item in item_list})
+  return recommend[:rec_count]
+  
+  
+  #Görev 5 : Oluşturduğunuz fonksiyonla birlikte öneride bulununuz.
+  
+  arl_recommend(rules, "2_0",1, sort_values="confidence")
+  arl_recommend(rules, "2_0",2, sort_values="lift")
